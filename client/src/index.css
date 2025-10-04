@@ -1,0 +1,22 @@
+@import "tailwindcss";
+body {
+  margin: 0;
+  padding: 0;
+    box-sizing: border-box;
+  font-family: 'Inter', sans-serif;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+
+* {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar{
+  display: none;
+}
