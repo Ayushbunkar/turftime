@@ -31,8 +31,8 @@ import {
   Activity,
   Award
 } from 'lucide-react';
-import SuperAdminSidebar from './SuperAdminSidebar';
-import SuperAdminNavbar from './SuperAdminNavbar';
+import SuperAdminSidebar from '../SuperAdmin/SuperAdminSidebar';
+import TurfAdminNavbar from './TurfAdminNavbar';
 import toast from 'react-hot-toast';
 
 const TurfAdminManagement = () => {
@@ -244,9 +244,9 @@ const TurfAdminManagement = () => {
       <SuperAdminSidebar />
       
       <div className="flex-1 ml-80">
-        <SuperAdminNavbar />
+        <TurfAdminNavbar />
         
-        <main className="p-8">
+        <main className="p-8 pt-48">
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div>

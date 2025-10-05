@@ -25,11 +25,20 @@ import NotFound from "./pages/NotFound";
 import { Toaster } from "react-hot-toast";
 import Test from "./pages/Location";
 import TurfAdminDashboard from "./pages/DashBoards/TurfAdmin/TurfAdminDashboard.jsx";
-import AdminDashboard from "./pages/DashBoards/SuperAdmin/AdminDashboard";
-import AdminUsers from "./pages/DashBoards/SuperAdmin/AdminUsers";
-import AdminBookings from "./pages/DashBoards/SuperAdmin/AdminBookings";
-import TurfAdminManagement from "./pages/DashBoards/SuperAdmin/TurfAdminManagement";
-import SystemAnalytics from "./pages/DashBoards/SuperAdmin/SystemAnalytics";
+import SuperAdminDashboard from "./pages/DashBoards/SuperAdmin/SuperAdminDashboard";
+import SuperAdminUsers from "./pages/DashBoards/SuperAdmin/SuperAdminUsers";
+import SuperAdminBookingManagement from "./pages/DashBoards/SuperAdmin/SuperAdminBookingManagement";
+import TurfAdminManagement from "./pages/DashBoards/TurfAdmin/TurfAdminManagement.jsx";
+import SuperAdminAnalytics from "./pages/DashBoards/SuperAdmin/SuperAdminAnalytics";
+import SuperAdminSettings from "./pages/DashBoards/SuperAdmin/SuperAdminSettings";
+import SuperAdminTurfAdmins from "./pages/DashBoards/SuperAdmin/SuperAdminTurfAdmins";
+import SuperAdminTurfs from "./pages/DashBoards/SuperAdmin/SuperAdminTurfsandVenues.jsx";
+import SuperAdminRevenue from "./pages/DashBoards/SuperAdmin/SuperAdminRevenue";
+import SuperAdminSystemHealth from "./pages/DashBoards/SuperAdmin/SuperAdminSystemHealth";
+import SuperAdminNotifications from "./pages/DashBoards/SuperAdmin/SuperAdminNotifications";
+import SuperAdminDatabase from "./pages/DashBoards/SuperAdmin/SuperAdminDatabase";
+import SuperAdminEmails from "./pages/DashBoards/SuperAdmin/SuperAdminEmails";
+import SuperAdminSupport from "./pages/DashBoards/SuperAdmin/SuperAdminSupport";
 import TurfAdminHome from "./pages/DashBoards/TurfAdmin/TurfAdminHome.jsx";
 import TurfAdminTurfs from "./pages/DashBoards/TurfAdmin/TurfAdminTurfs.jsx";
 import TurfAdminBookings from "./pages/DashBoards/TurfAdmin/TurfAdminBookings.jsx";
@@ -38,8 +47,6 @@ import TurfAdminProfile from "./pages/DashBoards/TurfAdmin/TurfAdminProfile.jsx"
 import TurfAdminSettings from "./pages/DashBoards/TurfAdmin/TurfAdminSettings.jsx";
 import TurfAdminNotifications from "./pages/DashBoards/TurfAdmin/TurfAdminNotifications.jsx";
 import TurfAdminHelp from "./pages/DashBoards/TurfAdmin/TurfAdminHelp.jsx";
-import AdminAnalytics from "./pages/DashBoards/SuperAdmin/AdminAnalytics";
-import AdminSettings from "./pages/DashBoards/SuperAdmin/AdminSettings";
 import Payment from "./pages/Payment.jsx";
 import { useAuth } from "./context/AuthContext";
 
@@ -47,8 +54,14 @@ import { useAuth } from "./context/AuthContext";
 function ConditionalFooter() {
   const location = useLocation();
   
-  // Hide footer on dashboard routes
-  const dashboardRoutes = ['/user-dashboard', '/user', '/admin', '/turfadmin'];
+  // Hide footer on all dashboard routes
+  const dashboardRoutes = [
+    '/user-dashboard', 
+    '/user', 
+    '/admin', 
+    '/super-admin',
+    '/turfadmin'
+  ];
   const shouldHideFooter = dashboardRoutes.some(route => 
     location.pathname.startsWith(route)
   );
@@ -125,23 +138,55 @@ function AppRoutes() {
             {/* Super Admin Dashboard Routes */}
             <Route 
               path="/super-admin/dashboard" 
-              element={<ProtectedRoute element={<AdminDashboard />} allowedRoles={["admin", "superadmin"]} />} 
+              element={<ProtectedRoute element={<SuperAdminDashboard />} allowedRoles={["admin", "superadmin"]} />} 
             />
             <Route 
               path="/super-admin/users" 
-              element={<ProtectedRoute element={<AdminUsers />} allowedRoles={["admin", "superadmin"]} />} 
+              element={<ProtectedRoute element={<SuperAdminUsers />} allowedRoles={["admin", "superadmin"]} />} 
             />
             <Route 
               path="/super-admin/turf-admins" 
-              element={<ProtectedRoute element={<TurfAdminManagement />} allowedRoles={["admin", "superadmin"]} />} 
+              element={<ProtectedRoute element={<SuperAdminTurfAdmins />} allowedRoles={["admin", "superadmin"]} />} 
             />
             <Route 
-              path="/super-admin/analytics" 
-              element={<ProtectedRoute element={<SystemAnalytics />} allowedRoles={["admin", "superadmin"]} />} 
+              path="/super-admin/turfs" 
+              element={<ProtectedRoute element={<SuperAdminTurfs />} allowedRoles={["admin", "superadmin"]} />} 
             />
             <Route 
               path="/super-admin/bookings" 
-              element={<ProtectedRoute element={<AdminBookings />} allowedRoles={["admin", "superadmin"]} />} 
+              element={<ProtectedRoute element={<SuperAdminBookingManagement />} allowedRoles={["admin", "superadmin"]} />} 
+            />
+            <Route 
+              path="/super-admin/analytics" 
+              element={<ProtectedRoute element={<SuperAdminAnalytics />} allowedRoles={["admin", "superadmin"]} />} 
+            />
+            <Route 
+              path="/super-admin/revenue" 
+              element={<ProtectedRoute element={<SuperAdminRevenue />} allowedRoles={["admin", "superadmin"]} />} 
+            />
+            <Route 
+              path="/super-admin/notifications" 
+              element={<ProtectedRoute element={<SuperAdminNotifications />} allowedRoles={["admin", "superadmin"]} />} 
+            />
+            <Route 
+              path="/super-admin/database" 
+              element={<ProtectedRoute element={<SuperAdminDatabase />} allowedRoles={["admin", "superadmin"]} />} 
+            />
+            <Route 
+              path="/super-admin/system-health" 
+              element={<ProtectedRoute element={<SuperAdminSystemHealth />} allowedRoles={["admin", "superadmin"]} />} 
+            />
+            <Route 
+              path="/super-admin/emails" 
+              element={<ProtectedRoute element={<SuperAdminEmails />} allowedRoles={["admin", "superadmin"]} />} 
+            />
+            <Route 
+              path="/super-admin/support" 
+              element={<ProtectedRoute element={<SuperAdminSupport />} allowedRoles={["admin", "superadmin"]} />} 
+            />
+            <Route 
+              path="/super-admin/settings" 
+              element={<ProtectedRoute element={<SuperAdminSettings />} allowedRoles={["admin", "superadmin"]} />} 
             />
             
             {/* Legacy Admin Dashboard Routes - redirect to super-admin */}

@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
-const Sidebar = ({ user, onToggleDark, darkMode = false }) => {
+const Sidebar = ({ user, onToggleDark, darkMode = false, isMobileOpen = false, onMobileToggle = () => {} }) => {
   const location = useLocation();
   
   const menuItems = [
@@ -73,10 +73,13 @@ const Sidebar = ({ user, onToggleDark, darkMode = false }) => {
       initial={{ x: -280 }}
       animate={{ x: 0 }}
       transition={{ duration: 0.3 }}
-      className="fixed left-0 top-0 z-40 h-screen w-64 bg-white dark:bg-gray-800 shadow-xl border-r border-gray-200 dark:border-gray-700"
+      className={`fixed left-0 top-36 z-40 w-64 bg-white dark:bg-gray-800 shadow-xl border-r border-gray-200 dark:border-gray-700 
+                 transform transition-transform duration-300 ease-in-out h-[calc(100vh-9rem)] flex flex-col
+                 ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+                 lg:block`}
     >
       {/* Header */}
-      <div className="flex items-center mt-10 justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+      <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-full bg-green-500 text-white flex items-center justify-center text-lg font-semibold">
             {user?.name ? user.name[0].toUpperCase() : 'U'}
@@ -92,8 +95,29 @@ const Sidebar = ({ user, onToggleDark, darkMode = false }) => {
         </div>
       </div>
 
-      {/* Navigation Menu */}
-      <nav className="p-4 space-y-2">
+      {/* Navigation Menu - Scrollable */}
+      <nav className="flex-1 p-4 space-y-2 overflow-y-auto min-h-0 user-sidebar-nav">
+        <style>{`
+          .user-sidebar-nav::-webkit-scrollbar {
+            width: 6px;
+          }
+          .user-sidebar-nav::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          .user-sidebar-nav::-webkit-scrollbar-thumb {
+            background-color: #d1d5db;
+            border-radius: 3px;
+          }
+          .user-sidebar-nav::-webkit-scrollbar-thumb:hover {
+            background-color: #9ca3af;
+          }
+          .dark .user-sidebar-nav::-webkit-scrollbar-thumb {
+            background-color: #4b5563;
+          }
+          .dark .user-sidebar-nav::-webkit-scrollbar-thumb:hover {
+            background-color: #6b7280;
+          }
+        `}</style>
         {menuItems.map((item, index) => {
           const Icon = item.icon;
           return (
@@ -114,7 +138,7 @@ const Sidebar = ({ user, onToggleDark, darkMode = false }) => {
       </nav>
 
       {/* Bottom Actions */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+      <div className="mt-auto p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
         {/* Dark Mode Toggle */}
         <button
           onClick={onToggleDark}

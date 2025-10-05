@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Sidebar from "./Sidebar.jsx";
-import Navbar from "../../../components/layout/Navbar.jsx";
+import UserNavbar from "./UserNavbar.jsx";
 import { Card } from "../../../components/ui/Card.jsx";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
@@ -92,6 +92,7 @@ export default function UserDashboard() {
   const { user, login } = useAuth();
   const [darkMode, setDarkMode] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
 
 
@@ -139,12 +140,30 @@ export default function UserDashboard() {
       <div
         className={`${
           darkMode ? "dark" : ""
-        } min-h-screen  bg-gradient-to-br from-green-50 via-green-100 to-green-200 dark:from-gray-900 dark:to-gray-800`}
+        } min-h-screen bg-gradient-to-br from-green-50 via-green-100 to-green-200 dark:from-gray-900 dark:to-gray-800`}
       >
-        <Navbar user={user} onToggleDark={() => setDarkMode(!darkMode)} />
+        {/* Mobile Sidebar Overlay */}
+        {isMobileSidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+            onClick={() => setIsMobileSidebarOpen(false)}
+          />
+        )}
+        
+        <UserNavbar 
+          onMobileMenuToggle={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+          onToggleDark={() => setDarkMode(!darkMode)} 
+          darkMode={darkMode}
+        />
         <div className="flex">
-          <Sidebar user={user} onToggleDark={() => setDarkMode(!darkMode)} darkMode={darkMode} />
-          <main className="flex-1 ml-64 p-4 mt-20 sm:p-8 space-y-8">
+          <Sidebar 
+            user={user} 
+            onToggleDark={() => setDarkMode(!darkMode)} 
+            darkMode={darkMode}
+            isMobileOpen={isMobileSidebarOpen}
+            onMobileToggle={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+          />
+          <main className="flex-1 ml-0 lg:ml-64 p-4 lg:p-8 pt-48 space-y-8 pb-8 min-h-screen">
             {/* Profile Card */}
             <motion.div
               initial={{ opacity: 0, y: 30 }}

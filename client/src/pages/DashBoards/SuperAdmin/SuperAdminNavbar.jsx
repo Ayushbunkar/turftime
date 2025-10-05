@@ -15,8 +15,9 @@ import {
   Menu
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
+import superAdminService from '../../../services/superAdminService';
 
-const SuperAdminNavbar = () => {
+const SuperAdminNavbar = ({ onMobileMenuToggle }) => {
   const { user, logout } = useAuth();
   const [darkMode, setDarkMode] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -31,17 +32,13 @@ const SuperAdminNavbar = () => {
     fetchSystemAlerts();
   }, []);
 
+
+
   const fetchNotifications = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:4500/api/admin/notifications', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data.notifications || []);
-      }
+      // Use the superAdminService instead of direct fetch
+      const data = await superAdminService.getNotifications();
+      setNotifications(data.notifications || []);
     } catch (error) {
       console.error('Error fetching notifications:', error);
       // Set mock notifications for demo
@@ -76,15 +73,9 @@ const SuperAdminNavbar = () => {
 
   const fetchSystemAlerts = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:4500/api/admin/system-alerts', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setSystemAlerts(data.alerts || []);
-      }
+      // Use the superAdminService instead of direct fetch
+      const data = await superAdminService.getSystemAlerts();
+      setSystemAlerts(data.alerts || []);
     } catch (error) {
       console.error('Error fetching system alerts:', error);
       // Set mock alerts for demo
@@ -109,22 +100,35 @@ const SuperAdminNavbar = () => {
   return (
     <motion.nav
       initial={{ y: -20, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 sticky top-0 z-40"
+      animate={{ 
+        y: 0, 
+        opacity: 1 
+      }}
+      transition={{ duration: 0.3, ease: 'easeInOut' }}
+      className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-3 sm:px-6 py-3 sm:py-4 fixed top-16 left-0 right-0 z-50"
     >
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 sm:gap-4">
         {/* Left Section */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2 sm:space-x-3 lg:space-x-4">
+          {/* Mobile Menu Button */}
+          <button
+            onClick={onMobileMenuToggle}
+            className="lg:hidden p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
+          >
+            <Menu className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+          </button>
+          
           {/* Page Title */}
-          <div className="flex items-center space-x-2">
-            <Shield className="w-6 h-6 text-blue-600" />
-            <h1 className="text-xl font-bold text-gray-800 dark:text-white">
-              Super Admin Panel
+          <div className="flex items-center space-x-1 sm:space-x-2">
+            <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+            <h1 className="text-base sm:text-lg lg:text-xl font-bold text-gray-800 dark:text-white">
+              <span className="hidden sm:inline">Super Admin Panel</span>
+              <span className="sm:hidden">Admin</span>
             </h1>
           </div>
 
           {/* System Status Indicator */}
-          <div className="flex items-center space-x-2 px-3 py-1 bg-green-100 dark:bg-green-900 rounded-full">
+          <div className="hidden md:flex items-center space-x-2 px-3 py-1 bg-green-100 dark:bg-green-900 rounded-full">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
             <span className="text-xs font-medium text-green-700 dark:text-green-300">
               All Systems Operational
@@ -133,23 +137,23 @@ const SuperAdminNavbar = () => {
         </div>
 
         {/* Center Section - Search */}
-        <div className="flex-1 max-w-lg mx-8">
-          <div className="relative">
+        <div className="hidden lg:flex flex-1 max-w-lg mx-4 xl:mx-8">
+          <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
               placeholder="Search users, turfs, bookings..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
         </div>
 
         {/* Right Section */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-1 sm:space-x-2 lg:space-x-4">
           {/* Quick Stats */}
-          <div className="hidden lg:flex items-center space-x-6 text-sm text-gray-600 dark:text-slate-300">
+          <div className="hidden xl:flex items-center space-x-4 lg:space-x-6 text-sm text-gray-600 dark:text-slate-300">
             <div className="flex items-center space-x-1">
               <User className="w-4 h-4" />
               <span>1,247 Users</span>
@@ -163,7 +167,7 @@ const SuperAdminNavbar = () => {
           {/* Dark Mode Toggle */}
           <button
             onClick={() => setDarkMode(!darkMode)}
-            className="p-2 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+            className="hidden sm:flex p-2 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
           >
             {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
@@ -172,11 +176,11 @@ const SuperAdminNavbar = () => {
           <div className="relative">
             <button
               onClick={() => setShowNotifications(!showNotifications)}
-              className="p-2 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors relative"
+              className="p-1.5 sm:p-2 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors relative"
             >
               <Bell className="w-5 h-5" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 bg-red-500 text-white text-[10px] sm:text-xs rounded-full flex items-center justify-center">
                   {unreadCount}
                 </span>
               )}
@@ -188,7 +192,7 @@ const SuperAdminNavbar = () => {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
-                className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 z-50"
+                className="absolute right-0 mt-2 w-screen max-w-[calc(100vw-2rem)] sm:w-80 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 z-50"
               >
                 <div className="p-4 border-b border-gray-200 dark:border-slate-700">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -236,7 +240,7 @@ const SuperAdminNavbar = () => {
           </div>
 
           {/* Settings */}
-          <button className="p-2 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+          <button className="hidden md:flex p-2 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
             <Settings className="w-5 h-5" />
           </button>
 
@@ -244,14 +248,14 @@ const SuperAdminNavbar = () => {
           <div className="relative">
             <button
               onClick={() => setShowProfile(!showProfile)}
-              className="flex items-center space-x-2 p-2 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+              className="flex items-center space-x-1 sm:space-x-2 p-1.5 sm:p-2 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
             >
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                <span className="text-sm font-bold text-white">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                <span className="text-xs sm:text-sm font-bold text-white">
                   {user?.name?.charAt(0) || 'S'}
                 </span>
               </div>
-              <span className="text-sm font-medium hidden md:block">
+              <span className="text-xs sm:text-sm font-medium hidden lg:block">
                 {user?.name || 'Super Admin'}
               </span>
             </button>
@@ -262,7 +266,7 @@ const SuperAdminNavbar = () => {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
-                className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 z-50"
+                className="absolute right-0 mt-2 w-56 sm:w-64 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 z-50"
               >
                 <div className="p-4 border-b border-gray-200 dark:border-slate-700">
                   <div className="flex items-center space-x-3">

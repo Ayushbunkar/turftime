@@ -45,6 +45,7 @@ import SuperAdminNavbar from './SuperAdminNavbar';
 import toast from 'react-hot-toast';
 
 const SystemAnalytics = () => {
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [analyticsData, setAnalyticsData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState('30d');
@@ -203,9 +204,9 @@ const SystemAnalytics = () => {
     return (
       <div className="flex min-h-screen bg-gray-50">
         <SuperAdminSidebar />
-        <div className="flex-1 ml-80">
+      <div className="flex-1 lg:ml-80">
           <SuperAdminNavbar />
-          <main className="p-8">
+          <main className="p-4 lg:p-8 pb-4 pt-48 min-h-screen">
             <div className="animate-pulse space-y-8">
               <div className="h-8 bg-gray-200 rounded w-64"></div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -227,12 +228,25 @@ const SystemAnalytics = () => {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <SuperAdminSidebar />
+      {/* Mobile Sidebar Overlay */}
+      {isMobileSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
       
-      <div className="flex-1 ml-80">
-        <SuperAdminNavbar />
+      {/* Sidebar */}
+      <SuperAdminSidebar 
+        isMobileOpen={isMobileSidebarOpen} 
+        onMobileClose={() => setIsMobileSidebarOpen(false)} 
+      />
+      
+      {/* Main Content */}
+      <div className="flex-1 lg:ml-80">
+        <SuperAdminNavbar onMobileMenuToggle={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)} />
         
-        <main className="p-8">
+        <main className="p-4 lg:p-8 pb-4 mt-16 lg:mt-20 min-h-screen">
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div>

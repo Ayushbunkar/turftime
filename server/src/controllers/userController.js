@@ -2,7 +2,9 @@ import User from '../models/userModel.js';
 
 export const getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('-password');
+    // Support both userId and id fields for compatibility
+    const userId = req.user.userId || req.user.id || req.user._id;
+    const user = await User.findById(userId).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.status(200).json({ user });
   } catch (err) {
@@ -13,8 +15,10 @@ export const getProfile = async (req, res) => {
 export const updateProfile = async (req, res) => {
   try {
     const { name, email } = req.body;
+    // Support both userId and id fields for compatibility
+    const userId = req.user.userId || req.user.id || req.user._id;
     const updated = await User.findByIdAndUpdate(
-      req.user.userId,
+      userId,
       { name, email },
       { new: true, runValidators: true }
     ).select('-password');

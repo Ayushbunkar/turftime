@@ -16,7 +16,7 @@ import {
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 
-const TurfAdminSidebar = ({ onToggleDark, darkMode = false }) => {
+const TurfAdminSidebar = ({ onToggleDark, darkMode = false, isMobileOpen = false, onMobileClose = () => {} }) => {
   const { user, logout } = useAuth();
   const location = useLocation();
   
@@ -84,10 +84,12 @@ const TurfAdminSidebar = ({ onToggleDark, darkMode = false }) => {
       initial={{ x: -280 }}
       animate={{ x: 0 }}
       transition={{ duration: 0.3 }}
-      className="fixed left-0 top-0 z-40 h-screen w-64 bg-white dark:bg-gray-800 shadow-xl border-r border-gray-200 dark:border-gray-700 flex flex-col"
+      className={`fixed left-0 top-36 z-40 w-64 bg-white dark:bg-gray-800 shadow-xl border-r border-gray-200 dark:border-gray-700 
+                 flex flex-col transform transition-transform duration-300 ease-in-out h-[calc(100vh-9rem)]
+                 ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
     >
       {/* Header */}
-      <div className="flex items-center mt-10 justify-between p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+      <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-full bg-green-500 text-white flex items-center justify-center text-lg font-semibold">
             {user?.name ? user.name[0].toUpperCase() : 'T'}
@@ -104,7 +106,7 @@ const TurfAdminSidebar = ({ onToggleDark, darkMode = false }) => {
       </div>
 
       {/* Navigation Menu - Scrollable */}
-      <nav className="flex-1 p-4 space-y-2 overflow-y-auto min-h-0 sidebar-nav">
+      <nav className="flex-1 p-4 space-y-2 overflow-y-auto min-h-0 sidebar-nav scrollbar-thin scrollbar-thumb-gray-400 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent hover:scrollbar-thumb-gray-500 dark:hover:scrollbar-thumb-gray-500">
         <style>{`
           .sidebar-nav::-webkit-scrollbar {
             width: 6px;

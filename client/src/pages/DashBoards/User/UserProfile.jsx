@@ -4,7 +4,7 @@ import { User, Mail, Lock, Save, Edit2, Calendar, MapPin, Phone } from 'lucide-r
 import { useAuth } from '../../../context/AuthContext';
 import { Card } from '../../../components/ui/Card';
 import Sidebar from './Sidebar';
-import Navbar from '../../../components/layout/Navbar';
+import UserNavbar from './UserNavbar';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 
@@ -136,10 +136,10 @@ const UserProfile = () => {
 
   return (
     <div className={`${darkMode ? 'dark' : ''} min-h-screen bg-gradient-to-br from-green-50 via-green-100 to-green-200 dark:from-gray-900 dark:to-gray-800`}>
-      <Navbar user={user} onToggleDark={() => setDarkMode(!darkMode)} />
+      <UserNavbar onToggleDark={() => setDarkMode(!darkMode)} darkMode={darkMode} />
       <div className="flex">
         <Sidebar user={user} onToggleDark={() => setDarkMode(!darkMode)} darkMode={darkMode} />
-        <main className="flex-1 ml-64 p-4 mt-20 sm:p-8">
+        <main className="flex-1 ml-0 lg:ml-64 p-4 lg:p-8 pt-48 pb-8 min-h-screen">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

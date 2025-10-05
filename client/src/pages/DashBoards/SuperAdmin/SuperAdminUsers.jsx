@@ -29,8 +29,10 @@ import {
 import SuperAdminSidebar from './SuperAdminSidebar';
 import SuperAdminNavbar from './SuperAdminNavbar';
 import toast from 'react-hot-toast';
+import superAdminService from '../../../services/superAdminService';
 
-const AdminUsers = () => {
+const SuperAdminUsers = () => {
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -47,18 +49,25 @@ const AdminUsers = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [statistics, setStatistics] = useState({
+    totalUsers: 0,
+    activeUsers: 0,
+    pendingUsers: 0,
+    turfAdmins: 0
+  });
 
   const usersPerPage = 10;
 
   useEffect(() => {
     fetchUsers();
+    fetchStatistics();
   }, [currentPage, searchQuery, selectedRole, selectedStatus, sortBy, sortOrder]);
 
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const params = new URLSearchParams({
+      const filters = {
         page: currentPage,
         limit: usersPerPage,
         ...(searchQuery && { search: searchQuery }),
@@ -66,57 +75,12 @@ const AdminUsers = () => {
         ...(selectedStatus && { status: selectedStatus }),
         sortBy,
         sortOrder
-      });
+      };
 
-      const response = await fetch(`http://localhost:4500/api/super-admin/users?${params}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setUsers(data.users);
-        setTotalPages(data.pagination.totalPages);
-        setTotalUsers(data.pagination.totalUsers);
-      } else {
-        // Mock data for demo
-        setUsers([
-          {
-            _id: '1',
-            name: 'John Doe',
-            email: 'john@example.com',
-            role: 'user',
-            status: 'active',
-            phone: '+1234567890',
-            location: 'New York, USA',
-            createdAt: '2024-01-15T10:30:00Z',
-            lastLogin: '2024-01-20T14:30:00Z'
-          },
-          {
-            _id: '2',
-            name: 'Jane Smith',
-            email: 'jane@example.com',
-            role: 'turfAdmin',
-            status: 'pending',
-            phone: '+1234567891',
-            location: 'Los Angeles, USA',
-            createdAt: '2024-01-14T09:15:00Z',
-            lastLogin: '2024-01-19T16:45:00Z'
-          },
-          {
-            _id: '3',
-            name: 'Mike Johnson',
-            email: 'mike@example.com',
-            role: 'user',
-            status: 'inactive',
-            phone: '+1234567892',
-            location: 'Chicago, USA',
-            createdAt: '2024-01-13T11:20:00Z',
-            lastLogin: '2024-01-18T10:15:00Z'
-          }
-        ]);
-        setTotalPages(1);
-        setTotalUsers(3);
-      }
+      const data = await superAdminService.getAllUsers(filters);
+      setUsers(data.users);
+      setTotalPages(data.pagination.totalPages);
+      setTotalUsers(data.pagination.totalUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast.error('Failed to fetch users');
@@ -125,24 +89,21 @@ const AdminUsers = () => {
     }
   };
 
+  const fetchStatistics = async () => {
+    try {
+      const stats = await superAdminService.getUserStatistics();
+      setStatistics(stats);
+    } catch (error) {
+      console.error('Error fetching user statistics:', error);
+    }
+  };
+
   const handleUserStatusUpdate = async (userId, newStatus, reason = '') => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:4500/api/super-admin/users/${userId}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ status: newStatus, reason })
-      });
-
-      if (response.ok) {
-        toast.success(`User ${newStatus} successfully`);
-        fetchUsers();
-      } else {
-        toast.error('Failed to update user status');
-      }
+      await superAdminService.updateUserStatus(userId, { status: newStatus, reason });
+      toast.success(`User ${newStatus} successfully`);
+      fetchUsers();
+      fetchStatistics();
     } catch (error) {
       console.error('Error updating user status:', error);
       toast.error('Failed to update user status');
@@ -151,20 +112,12 @@ const AdminUsers = () => {
 
   const handleDeleteUser = async (userId) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:4500/api/super-admin/users/${userId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        toast.success('User deleted successfully');
-        fetchUsers();
-        setShowDeleteModal(false);
-        setUserToDelete(null);
-      } else {
-        toast.error('Failed to delete user');
-      }
+      await superAdminService.deleteUser(userId);
+      toast.success('User deleted successfully');
+      fetchUsers();
+      fetchStatistics();
+      setShowDeleteModal(false);
+      setUserToDelete(null);
     } catch (error) {
       console.error('Error deleting user:', error);
       toast.error('Failed to delete user');
@@ -177,8 +130,46 @@ const AdminUsers = () => {
       return;
     }
 
-    // Implement bulk actions here
-    toast.success(`${action} applied to ${selectedUsers.length} users`);
+    try {
+      const promises = selectedUsers.map(userId => {
+        switch (action) {
+          case 'activate':
+            return superAdminService.updateUserStatus(userId, { status: 'active' });
+          case 'deactivate':
+            return superAdminService.updateUserStatus(userId, { status: 'inactive' });
+          case 'delete':
+            return superAdminService.deleteUser(userId);
+          default:
+            return Promise.resolve();
+        }
+      });
+
+      await Promise.all(promises);
+      toast.success(`${action} applied to ${selectedUsers.length} users`);
+      setSelectedUsers([]);
+      fetchUsers();
+      fetchStatistics();
+    } catch (error) {
+      console.error('Error applying bulk action:', error);
+      toast.error('Failed to apply bulk action');
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([fetchUsers(), fetchStatistics()]);
+    setRefreshing(false);
+    toast.success('Data refreshed successfully');
+  };
+
+  const handleExportCSV = async () => {
+    try {
+      await superAdminService.exportUsersCSV();
+      toast.success('CSV export completed');
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      toast.error('Failed to export CSV');
+    }
   };
 
   const getStatusColor = (status) => {
@@ -223,89 +214,100 @@ const AdminUsers = () => {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <SuperAdminSidebar />
+      {/* Mobile Sidebar Overlay */}
+      {isMobileSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
       
-      <div className="flex-1 ml-80">
-        <SuperAdminNavbar />
+      {/* Sidebar */}
+      <SuperAdminSidebar 
+        isMobileOpen={isMobileSidebarOpen} 
+        onMobileClose={() => setIsMobileSidebarOpen(false)} 
+      />
+      
+      {/* Main Content */}
+      <div className="flex-1 lg:ml-80">
+        <SuperAdminNavbar onMobileMenuToggle={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)} />
         
-        <main className="p-8">
+  <main className="p-4 lg:p-8 pb-4 pt-32 lg:pt-40 min-h-screen">
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 lg:mb-8 gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
-              <p className="text-gray-600 mt-1">Manage and monitor all platform users</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">User Management</h1>
+              <p className="text-sm sm:text-base text-gray-600 mt-1">Manage and monitor all platform users</p>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <button
-                onClick={fetchUsers}
-                className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="flex items-center space-x-2 px-3 sm:px-4 py-2 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                <span>Refresh</span>
+                <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Refresh</span>
               </button>
-              <button className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+              <button 
+                onClick={handleExportCSV}
+                className="flex items-center space-x-2 px-3 sm:px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
                 <Download className="w-4 h-4" />
-                <span>Export CSV</span>
+                <span className="hidden sm:inline">Export CSV</span>
               </button>
-              <button className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+              <button className="flex items-center space-x-2 px-3 sm:px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
                 <Plus className="w-4 h-4" />
-                <span>Add User</span>
+                <span className="hidden sm:inline">Add User</span>
               </button>
             </div>
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 lg:mb-8">
+            <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
               <div className="flex items-center space-x-3">
-                <div className="p-3 bg-blue-100 rounded-lg">
-                  <Users className="w-6 h-6 text-blue-600" />
+                <div className="p-2 sm:p-3 bg-blue-100 rounded-lg">
+                  <Users className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-gray-900">{totalUsers.toLocaleString()}</p>
-                  <p className="text-gray-600 text-sm">Total Users</p>
+                  <p className="text-xl sm:text-2xl font-bold text-gray-900">{statistics.totalUsers?.toLocaleString() || '0'}</p>
+                  <p className="text-gray-600 text-xs sm:text-sm">Total Users</p>
                 </div>
               </div>
             </div>
             
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
               <div className="flex items-center space-x-3">
-                <div className="p-3 bg-green-100 rounded-lg">
-                  <CheckCircle className="w-6 h-6 text-green-600" />
+                <div className="p-2 sm:p-3 bg-green-100 rounded-lg">
+                  <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {users.filter(u => u.status === 'active').length}
-                  </p>
-                  <p className="text-gray-600 text-sm">Active Users</p>
+                  <p className="text-xl sm:text-2xl font-bold text-gray-900">{statistics.activeUsers?.toLocaleString() || '0'}</p>
+                  <p className="text-gray-600 text-xs sm:text-sm">Active Users</p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
               <div className="flex items-center space-x-3">
-                <div className="p-3 bg-yellow-100 rounded-lg">
-                  <Clock className="w-6 h-6 text-yellow-600" />
+                <div className="p-2 sm:p-3 bg-yellow-100 rounded-lg">
+                  <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {users.filter(u => u.status === 'pending').length}
-                  </p>
-                  <p className="text-gray-600 text-sm">Pending Approval</p>
+                  <p className="text-xl sm:text-2xl font-bold text-gray-900">{statistics.pendingUsers?.toLocaleString() || '0'}</p>
+                  <p className="text-gray-600 text-xs sm:text-sm">Pending Approval</p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
               <div className="flex items-center space-x-3">
-                <div className="p-3 bg-purple-100 rounded-lg">
-                  <Shield className="w-6 h-6 text-purple-600" />
+                <div className="p-2 sm:p-3 bg-purple-100 rounded-lg">
+                  <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {users.filter(u => u.role === 'turfAdmin').length}
-                  </p>
-                  <p className="text-gray-600 text-sm">Turf Admins</p>
+                  <p className="text-xl sm:text-2xl font-bold text-gray-900">{statistics.turfAdmins?.toLocaleString() || '0'}</p>
+                  <p className="text-gray-600 text-xs sm:text-sm">Turf Admins</p>
                 </div>
               </div>
             </div>
@@ -313,9 +315,9 @@ const AdminUsers = () => {
 
           {/* Search and Filters */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-4 flex-1 max-w-2xl">
+            <div className="p-4 sm:p-6">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1">
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
@@ -323,12 +325,12 @@ const AdminUsers = () => {
                       placeholder="Search by name or email..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   <button
                     onClick={() => setShowFilters(!showFilters)}
-                    className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    className="flex items-center justify-center space-x-2 px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
                   >
                     <Filter className="w-4 h-4" />
                     <span>Filters</span>
@@ -337,19 +339,25 @@ const AdminUsers = () => {
                 </div>
 
                 {selectedUsers.length > 0 && (
-                  <div className="flex items-center space-x-4">
-                    <span className="text-sm text-gray-600">{selectedUsers.length} selected</span>
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                    <span className="text-xs sm:text-sm text-gray-600">{selectedUsers.length} selected</span>
                     <button
                       onClick={() => handleBulkAction('activate')}
-                      className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+                      className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
                     >
                       Activate
                     </button>
                     <button
                       onClick={() => handleBulkAction('deactivate')}
-                      className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+                      className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
                     >
                       Deactivate
+                    </button>
+                    <button
+                      onClick={() => handleBulkAction('delete')}
+                      className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                    >
+                      Delete
                     </button>
                   </div>
                 )}
@@ -363,13 +371,13 @@ const AdminUsers = () => {
                     exit={{ height: 0, opacity: 0 }}
                     className="overflow-hidden"
                   >
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t border-gray-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-4 border-t border-gray-200">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Role</label>
                         <select
                           value={selectedRole}
                           onChange={(e) => setSelectedRole(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
                           <option value="">All Roles</option>
                           <option value="user">User</option>
@@ -379,11 +387,11 @@ const AdminUsers = () => {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Status</label>
                         <select
                           value={selectedStatus}
                           onChange={(e) => setSelectedStatus(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
                           <option value="">All Statuses</option>
                           <option value="active">Active</option>
@@ -394,11 +402,11 @@ const AdminUsers = () => {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
+                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Sort By</label>
                         <select
                           value={sortBy}
                           onChange={(e) => setSortBy(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
                           <option value="createdAt">Date Created</option>
                           <option value="name">Name</option>
@@ -408,11 +416,11 @@ const AdminUsers = () => {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Order</label>
+                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Order</label>
                         <select
                           value={sortOrder}
                           onChange={(e) => setSortOrder(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
                           <option value="desc">Descending</option>
                           <option value="asc">Ascending</option>
@@ -428,7 +436,7 @@ const AdminUsers = () => {
           {/* Users Table */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100">
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full min-w-[900px]">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50">
                     <th className="px-6 py-4 text-left">
@@ -601,8 +609,8 @@ const AdminUsers = () => {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-                <div className="text-sm text-gray-700">
+              <div className="px-4 sm:px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-xs sm:text-sm text-gray-700">
                   Showing {((currentPage - 1) * usersPerPage) + 1} to {Math.min(currentPage * usersPerPage, totalUsers)} of {totalUsers} users
                 </div>
                 <div className="flex items-center space-x-2">
@@ -614,19 +622,31 @@ const AdminUsers = () => {
                     <ChevronLeft className="w-4 h-4" />
                   </button>
                   
-                  {[...Array(totalPages)].map((_, i) => (
-                    <button
-                      key={i + 1}
-                      onClick={() => setCurrentPage(i + 1)}
-                      className={`px-3 py-2 rounded-lg ${
-                        currentPage === i + 1
-                          ? 'bg-blue-600 text-white'
-                          : 'border border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      {i + 1}
-                    </button>
-                  ))}
+                  <div className="hidden sm:flex items-center space-x-2">
+                    {[...Array(Math.min(5, totalPages))].map((_, i) => {
+                      const pageNum = i + Math.max(1, currentPage - 2);
+                      if (pageNum > totalPages) return null;
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`px-3 py-2 rounded-lg text-sm ${
+                            currentPage === pageNum
+                              ? 'bg-blue-600 text-white'
+                              : 'border border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="sm:hidden">
+                    <span className="px-3 py-2 text-sm font-medium text-gray-700">
+                      {currentPage} / {totalPages}
+                    </span>
+                  </div>
                   
                   <button
                     onClick={() => setCurrentPage(currentPage + 1)}
@@ -655,10 +675,10 @@ const AdminUsers = () => {
               initial={{ scale: 0.9 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0.9 }}
-              className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+              className="bg-white rounded-xl p-4 sm:p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
             >
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-900">User Details</h2>
+              <div className="flex items-center justify-between mb-4 sm:mb-6">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900">User Details</h2>
                 <button
                   onClick={() => setShowUserModal(false)}
                   className="text-gray-400 hover:text-gray-600"
@@ -667,16 +687,16 @@ const AdminUsers = () => {
                 </button>
               </div>
 
-              <div className="space-y-6">
-                <div className="flex items-center space-x-4">
-                  <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                    <span className="text-xl font-bold text-white">
+              <div className="space-y-4 sm:space-y-6">
+                <div className="flex items-center space-x-3 sm:space-x-4">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                    <span className="text-lg sm:text-xl font-bold text-white">
                       {selectedUser.name.charAt(0).toUpperCase()}
                     </span>
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">{selectedUser.name}</h3>
-                    <p className="text-gray-600">{selectedUser.email}</p>
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">{selectedUser.name}</h3>
+                    <p className="text-sm sm:text-base text-gray-600">{selectedUser.email}</p>
                     <div className="flex items-center space-x-2 mt-1">
                       {getRoleIcon(selectedUser.role)}
                       <span className="text-sm font-medium text-gray-700 capitalize">{selectedUser.role}</span>
@@ -687,9 +707,9 @@ const AdminUsers = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                   <div>
-                    <h4 className="text-sm font-medium text-gray-900 mb-3">Contact Information</h4>
+                    <h4 className="text-xs sm:text-sm font-medium text-gray-900 mb-3">Contact Information</h4>
                     <div className="space-y-2">
                       <div className="flex items-center space-x-3">
                         <Mail className="w-4 h-4 text-gray-400" />
@@ -711,7 +731,7 @@ const AdminUsers = () => {
                   </div>
 
                   <div>
-                    <h4 className="text-sm font-medium text-gray-900 mb-3">Account Information</h4>
+                    <h4 className="text-xs sm:text-sm font-medium text-gray-900 mb-3">Account Information</h4>
                     <div className="space-y-2">
                       <div className="flex items-center space-x-3">
                         <Calendar className="w-4 h-4 text-gray-400" />
@@ -733,14 +753,14 @@ const AdminUsers = () => {
                   </div>
                 </div>
 
-                <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+                <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 sm:pt-6 border-t border-gray-200">
                   <button
                     onClick={() => setShowUserModal(false)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    className="w-full sm:w-auto px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                   >
                     Close
                   </button>
-                  <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                  <button className="w-full sm:w-auto px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
                     Edit User
                   </button>
                 </div>
@@ -763,7 +783,7 @@ const AdminUsers = () => {
               initial={{ scale: 0.9 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0.9 }}
-              className="bg-white rounded-xl p-6 max-w-md w-full"
+              className="bg-white rounded-xl p-4 sm:p-6 max-w-md w-full"
             >
               <div className="flex items-center space-x-3 mb-4">
                 <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
@@ -775,24 +795,24 @@ const AdminUsers = () => {
                 </div>
               </div>
 
-              <p className="text-gray-700 mb-6">
+              <p className="text-sm sm:text-base text-gray-700 mb-6">
                 Are you sure you want to delete <strong>{userToDelete.name}</strong>? 
                 This will permanently remove their account and all associated data.
               </p>
 
-              <div className="flex justify-end space-x-3">
+              <div className="flex flex-col sm:flex-row justify-end gap-3">
                 <button
                   onClick={() => {
                     setShowDeleteModal(false);
                     setUserToDelete(null);
                   }}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="w-full sm:w-auto px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => handleDeleteUser(userToDelete._id)}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  className="w-full sm:w-auto px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                 >
                   Delete User
                 </button>
@@ -805,4 +825,4 @@ const AdminUsers = () => {
   );
 };
 
-export default AdminUsers;
+export default SuperAdminUsers;

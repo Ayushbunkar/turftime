@@ -670,6 +670,382 @@ export const getAnalyticsData = async (req, res) => {
   }
 };
 
+// Get all bookings with advanced filtering
+export const getAllBookings = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || '';
+    const status = req.query.status || '';
+    const startDate = req.query.startDate;
+    const endDate = req.query.endDate;
+    const sortBy = req.query.sortBy || 'createdAt';
+    const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
+
+    // Build query
+    let query = {};
+    
+    if (search) {
+      // Search in user name, email, turf name
+      const users = await User.find({
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { email: { $regex: search, $options: 'i' } }
+        ]
+      }).select('_id');
+      
+      const turfs = await Turf.find({
+        name: { $regex: search, $options: 'i' }
+      }).select('_id');
+
+      query.$or = [
+        { user: { $in: users.map(u => u._id) } },
+        { turf: { $in: turfs.map(t => t._id) } }
+      ];
+    }
+    
+    if (status) {
+      query.status = status;
+    }
+
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) query.createdAt.$lte = new Date(endDate);
+    }
+
+    const skip = (page - 1) * limit;
+    
+    const [bookings, totalBookings] = await Promise.all([
+      Booking.find(query)
+        .populate('user', 'name email phone')
+        .populate('turf', 'name location images')
+        .sort({ [sortBy]: sortOrder })
+        .skip(skip)
+        .limit(limit),
+      Booking.countDocuments(query)
+    ]);
+
+    const totalPages = Math.ceil(totalBookings / limit);
+
+    // Calculate stats
+    const stats = await Booking.aggregate([
+      { $match: query },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: '$totalAmount' },
+          avgBookingValue: { $avg: '$totalAmount' },
+          statusBreakdown: {
+            $push: '$status'
+          }
+        }
+      }
+    ]);
+
+    const statusCounts = {};
+    if (stats[0]?.statusBreakdown) {
+      stats[0].statusBreakdown.forEach(status => {
+        statusCounts[status] = (statusCounts[status] || 0) + 1;
+      });
+    }
+
+    res.json({
+      bookings,
+      stats: {
+        total: totalBookings,
+        totalRevenue: stats[0]?.totalRevenue || 0,
+        avgBookingValue: stats[0]?.avgBookingValue || 0,
+        statusBreakdown: statusCounts
+      },
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalBookings,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching bookings:', error);
+    res.status(500).json({
+      message: 'Failed to fetch bookings',
+      error: error.message
+    });
+  }
+};
+
+// Update booking status
+export const updateBookingStatus = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { status, reason } = req.body;
+
+    const validStatuses = ['pending', 'confirmed', 'cancelled', 'completed', 'refunded'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    // Store previous status for audit trail
+    const previousStatus = booking.status;
+    
+    booking.status = status;
+    booking.statusUpdatedAt = new Date();
+    booking.statusUpdatedBy = req.user.id;
+    
+    if (reason) {
+      booking.statusReason = reason;
+    }
+
+    // Add to status history for audit trail
+    if (!booking.statusHistory) {
+      booking.statusHistory = [];
+    }
+    booking.statusHistory.push({
+      status: previousStatus,
+      changedTo: status,
+      changedBy: req.user.id,
+      changedAt: new Date(),
+      reason: reason
+    });
+
+    await booking.save();
+
+    res.json({
+      message: 'Booking status updated successfully',
+      booking: {
+        id: booking._id,
+        status: booking.status,
+        previousStatus,
+        updatedAt: booking.statusUpdatedAt
+      }
+    });
+  } catch (error) {
+    console.error('Error updating booking status:', error);
+    res.status(500).json({
+      message: 'Failed to update booking status',
+      error: error.message
+    });
+  }
+};
+
+// Get booking analytics
+export const getBookingAnalytics = async (req, res) => {
+  try {
+    const { period = '30d' } = req.query;
+    
+    // Calculate date range
+    let startDate;
+    switch (period) {
+      case '7d':
+        startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case '30d':
+        startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      case '90d':
+        startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+        break;
+      default:
+        startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    }
+
+    const [hourlyTrends, statusDistribution, revenueByTurf, peakTimes] = await Promise.all([
+      // Hourly booking trends
+      Booking.aggregate([
+        {
+          $match: { createdAt: { $gte: startDate } }
+        },
+        {
+          $addFields: {
+            hour: { $hour: '$createdAt' }
+          }
+        },
+        {
+          $group: {
+            _id: '$hour',
+            count: { $sum: 1 },
+            revenue: { $sum: '$totalAmount' }
+          }
+        },
+        { $sort: { '_id': 1 } }
+      ]),
+
+      // Status distribution
+      Booking.aggregate([
+        {
+          $match: { createdAt: { $gte: startDate } }
+        },
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 },
+            revenue: { $sum: '$totalAmount' }
+          }
+        }
+      ]),
+
+      // Revenue by turf
+      Booking.aggregate([
+        {
+          $match: { createdAt: { $gte: startDate } }
+        },
+        {
+          $group: {
+            _id: '$turf',
+            bookingCount: { $sum: 1 },
+            totalRevenue: { $sum: '$totalAmount' }
+          }
+        },
+        {
+          $lookup: {
+            from: 'turfs',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'turfData'
+          }
+        },
+        {
+          $unwind: '$turfData'
+        },
+        {
+          $project: {
+            name: '$turfData.name',
+            bookingCount: 1,
+            totalRevenue: 1
+          }
+        },
+        { $sort: { totalRevenue: -1 } }
+      ]),
+
+      // Peak booking times
+      Booking.aggregate([
+        {
+          $match: { createdAt: { $gte: startDate } }
+        },
+        {
+          $group: {
+            _id: {
+              dayOfWeek: { $dayOfWeek: '$createdAt' },
+              hour: { $hour: '$createdAt' }
+            },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { count: -1 } },
+        { $limit: 10 }
+      ])
+    ]);
+
+    res.json({
+      hourlyTrends,
+      statusDistribution,
+      revenueByTurf,
+      peakTimes,
+      period,
+      generatedAt: new Date()
+    });
+  } catch (error) {
+    console.error('Error fetching booking analytics:', error);
+    res.status(500).json({
+      message: 'Failed to fetch booking analytics',
+      error: error.message
+    });
+  }
+};
+
+// Get system settings
+export const getSystemSettings = async (req, res) => {
+  try {
+    // In a real app, you'd have a settings collection/document
+    // For now, we'll return default settings
+    const settings = {
+      general: {
+        siteName: process.env.SITE_NAME || 'TurfOwn',
+        siteDescription: process.env.SITE_DESCRIPTION || 'Premier Turf Booking Platform',
+        adminEmail: process.env.ADMIN_EMAIL || 'admin@turfown.com',
+        supportEmail: process.env.SUPPORT_EMAIL || 'support@turfown.com',
+        contactPhone: process.env.CONTACT_PHONE || '+91 9876543210',
+        timezone: process.env.TIMEZONE || 'Asia/Kolkata',
+        language: process.env.LANGUAGE || 'en',
+        currency: process.env.CURRENCY || 'INR'
+      },
+      security: {
+        sessionTimeout: parseInt(process.env.SESSION_TIMEOUT) || 30,
+        passwordExpiry: parseInt(process.env.PASSWORD_EXPIRY) || 90,
+        maxLoginAttempts: parseInt(process.env.MAX_LOGIN_ATTEMPTS) || 5,
+        twoFactorEnabled: process.env.TWO_FACTOR_ENABLED === 'true',
+        apiRateLimit: parseInt(process.env.API_RATE_LIMIT) || 1000
+      },
+      notifications: {
+        emailEnabled: process.env.EMAIL_ENABLED === 'true',
+        smsEnabled: process.env.SMS_ENABLED === 'true',
+        pushEnabled: process.env.PUSH_ENABLED === 'true'
+      },
+      payment: {
+        razorpayEnabled: process.env.RAZORPAY_ENABLED === 'true',
+        razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
+        stripeEnabled: process.env.STRIPE_ENABLED === 'true',
+        transactionFee: parseFloat(process.env.TRANSACTION_FEE) || 2.5,
+        minBookingAmount: parseInt(process.env.MIN_BOOKING_AMOUNT) || 100
+      },
+      booking: {
+        maxAdvanceBooking: parseInt(process.env.MAX_ADVANCE_BOOKING) || 30,
+        cancellationWindow: parseInt(process.env.CANCELLATION_WINDOW) || 2,
+        refundPercentage: parseInt(process.env.REFUND_PERCENTAGE) || 80,
+        autoConfirmBookings: process.env.AUTO_CONFIRM_BOOKINGS === 'true'
+      }
+    };
+
+    res.json(settings);
+  } catch (error) {
+    console.error('Error fetching system settings:', error);
+    res.status(500).json({
+      message: 'Failed to fetch system settings',
+      error: error.message
+    });
+  }
+};
+
+// Update system settings
+export const updateSystemSettings = async (req, res) => {
+  try {
+    const { category, settings } = req.body;
+    
+    // In a real app, you'd update the settings in database
+    // For now, we'll just validate and return success
+    
+    const validCategories = ['general', 'security', 'notifications', 'payment', 'booking'];
+    if (!validCategories.includes(category)) {
+      return res.status(400).json({ message: 'Invalid settings category' });
+    }
+
+    // Here you would typically:
+    // 1. Validate the settings
+    // 2. Update environment variables or database
+    // 3. Restart services if needed
+    // 4. Log the changes for audit trail
+
+    res.json({
+      message: 'Settings updated successfully',
+      category,
+      updatedAt: new Date(),
+      updatedBy: req.user.id
+    });
+  } catch (error) {
+    console.error('Error updating system settings:', error);
+    res.status(500).json({
+      message: 'Failed to update system settings',
+      error: error.message
+    });
+  }
+};
+
 // Helper function to calculate time ago
 function getTimeAgo(date) {
   const now = new Date();
